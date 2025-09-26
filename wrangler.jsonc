@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "health-education-portal-v2",
+  "compatibility_date": "2024-01-01",
+  "pages_build_output_dir": "./dist",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "health-education-portal-db",
+      "database_id": "35f58fc3-f8f0-4722-bb39-063900272c4a"
+    }
+  ]
+}

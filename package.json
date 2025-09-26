@@ -4,7 +4,10 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite dev",
-    "preview": "wrangler pages dev dist"
+    "preview": "wrangler pages dev dist",
+    "dev:d1": "wrangler pages dev dist --d1=health-education-portal-db --local --ip 0.0.0.0 --port 3000",
+    "db:migrate:local": "wrangler d1 migrations apply health-education-portal-db --local",
+    "db:migrate:prod": "wrangler d1 migrations apply health-education-portal-db"
   },
   "dependencies": {
     "hono": "^4.0.0"
