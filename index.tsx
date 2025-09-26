@@ -241,7 +241,7 @@ app.get('/', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>健康教育資料ポータル</title>
+        <title>保健体育資料ポータル〜保健編〜</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script>
@@ -278,7 +278,7 @@ app.get('/', (c) => {
                                 <i class="fas fa-heartbeat text-white text-xl"></i>
                             </div>
                             <div>
-                                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">健康教育資料ポータル</h1>
+                                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">保健体育資料ポータル〜保健編〜</h1>
                                 <p class="text-sm text-gray-600 dark:text-gray-400">中学校体育教師のための教材共有サイト</p>
                             </div>
                         </div>
