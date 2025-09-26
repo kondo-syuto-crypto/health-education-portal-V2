@@ -6,7 +6,7 @@
 - **主要機能**: 資料アップロード、カテゴリー分類、検索・フィルタリング、ダークモード対応
 
 ## 🌐 公開URL
-- **本番サイト**: https://7bf9b1dc.health-education-portal-fixed.pages.dev
+- **本番サイト**: https://health-portal-20250926-061039.pages.dev
 - **GitHubリポジトリ**: https://github.com/kondo-syuto-crypto/health-education-portal-V2
 
 ## ✅ 実装済み機能
