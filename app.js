@@ -1,362 +1,429 @@
 // グローバル変数
-let currentCategory = 'all';
+let currentMaterials = [];
 let categories = [];
-let materials = [];
+let currentCategory = 'all';
 
-// DOM要素
-const elementsSelector = {
-    categoryTabs: '#category-tabs',
-    materialsContainer: '#materials-container',
-    searchInput: '#search-input',
-    loading: '#loading',
-    emptyState: '#empty-state',
-    addMaterialBtn: '#add-material-btn',
-    addMaterialModal: '#add-material-modal',
-    closeModalBtn: '#close-modal',
-    cancelBtn: '#cancel-btn',
-    addMaterialForm: '#add-material-form',
-    themeToggle: '#theme-toggle'
-};
-
-// ページロード時の初期化
-document.addEventListener('DOMContentLoaded', async () => {
-    await loadCategories();
-    await loadMaterials();
-    setupEventListeners();
-    initTheme();
+// DOM読み込み完了後の初期化
+document.addEventListener('DOMContentLoaded', function() {
+    initializeApp();
 });
 
-// カテゴリー読み込み
-async function loadCategories() {
-    try {
-        const response = await axios.get('/api/categories');
-        if (response.data.success) {
-            categories = response.data.data;
-            renderCategoryTabs();
-            renderCategoryOptions();
-        } else {
-            console.error('Failed to load categories:', response.data.error);
-        }
-    } catch (error) {
-        console.error('Error loading categories:', error);
+// アプリケーション初期化
+async function initializeApp() {
+    // ダークモード設定の読み込み
+    initializeDarkMode();
+    
+    // イベントリスナーの設定
+    setupEventListeners();
+    
+    // データの初期読み込み
+    await loadCategories();
+    await loadMaterials();
+}
+
+// ダークモード初期化
+function initializeDarkMode() {
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.documentElement.classList.add('dark');
     }
-}
-
-// 資料読み込み
-async function loadMaterials() {
-    showLoading();
-    try {
-        const searchTerm = document.querySelector(elementsSelector.searchInput).value;
-        const params = new URLSearchParams({
-            category: currentCategory,
-            search: searchTerm,
-            limit: '50'
-        });
-
-        const response = await axios.get(`/api/materials?${params}`);
-        if (response.data.success) {
-            materials = response.data.data;
-            renderMaterials();
-        } else {
-            console.error('Failed to load materials:', response.data.error);
-            showEmptyState();
-        }
-    } catch (error) {
-        console.error('Error loading materials:', error);
-        showEmptyState();
-    } finally {
-        hideLoading();
-    }
-}
-
-// カテゴリータブ描画
-function renderCategoryTabs() {
-    const tabsContainer = document.querySelector(elementsSelector.categoryTabs);
-    const allTab = tabsContainer.querySelector('[data-category="all"]');
-    
-    // 既存のカテゴリータブを削除（「すべて」タブ以外）
-    const existingTabs = tabsContainer.querySelectorAll('.category-tab:not([data-category="all"])');
-    existingTabs.forEach(tab => tab.remove());
-
-    // カテゴリータブを追加
-    categories.forEach(category => {
-        const tab = document.createElement('button');
-        tab.className = 'category-tab px-6 py-3 rounded-full text-white font-semibold shadow-lg transition-all hover:shadow-xl';
-        tab.style.background = `linear-gradient(135deg, ${category.color}, ${category.color}dd)`;
-        tab.dataset.category = category.id;
-        tab.innerHTML = `${category.icon} ${category.name}`;
-        tabsContainer.appendChild(tab);
-    });
-}
-
-// カテゴリーオプション描画
-function renderCategoryOptions() {
-    const select = document.querySelector('#material-category');
-    // 既存のオプションをクリア（最初のオプション以外）
-    select.innerHTML = '<option value="">カテゴリーを選択...</option>';
-    
-    categories.forEach(category => {
-        const option = document.createElement('option');
-        option.value = category.id;
-        option.textContent = `${category.icon} ${category.name}`;
-        select.appendChild(option);
-    });
-}
-
-// 資料一覧描画
-function renderMaterials() {
-    const container = document.querySelector(elementsSelector.materialsContainer);
-    
-    if (materials.length === 0) {
-        showEmptyState();
-        return;
-    }
-
-    hideEmptyState();
-    
-    container.innerHTML = materials.map(material => {
-        const tagsHtml = material.tags && material.tags.length > 0 
-            ? material.tags.map(tag => `<span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">${tag}</span>`).join(' ')
-            : '';
-
-        const typeIcon = material.type === 'url' ? 'fas fa-link' : 'fas fa-file';
-        const typeColor = material.type === 'url' ? 'text-blue-500' : 'text-green-500';
-
-        return `
-            <div class="card border rounded-lg p-6 hover:shadow-lg transition-all cursor-pointer" data-material-id="${material.id}">
-                <div class="flex justify-between items-start mb-4">
-                    <div class="flex items-center gap-3">
-                        <span class="text-2xl">${material.category_icon}</span>
-                        <div>
-                            <h3 class="font-bold text-lg">${escapeHtml(material.title)}</h3>
-                            <p class="text-sm opacity-75">${material.category_name}</p>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <i class="${typeIcon} ${typeColor}"></i>
-                        <button class="delete-material text-red-500 hover:text-red-700 p-1" data-material-id="${material.id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-                
-                ${material.description ? `<p class="text-sm mb-4 opacity-80">${escapeHtml(material.description)}</p>` : ''}
-                
-                ${tagsHtml ? `<div class="flex flex-wrap gap-2 mb-4">${tagsHtml}</div>` : ''}
-                
-                <div class="flex justify-between items-center text-sm opacity-60">
-                    <span>${formatDate(material.created_at)}</span>
-                    ${material.type === 'file' && material.file_size ? `<span>${formatFileSize(material.file_size)}</span>` : ''}
-                </div>
-            </div>
-        `;
-    }).join('');
 }
 
 // イベントリスナー設定
 function setupEventListeners() {
-    // カテゴリータブクリック
-    document.querySelector(elementsSelector.categoryTabs).addEventListener('click', (e) => {
-        if (e.target.classList.contains('category-tab')) {
-            // タブの状態更新
-            document.querySelectorAll('.category-tab').forEach(tab => tab.classList.remove('active'));
-            e.target.classList.add('active');
-            
-            // カテゴリー変更
-            currentCategory = e.target.dataset.category;
-            loadMaterials();
-        }
-    });
-
-    // 検索入力
-    let searchTimeout;
-    document.querySelector(elementsSelector.searchInput).addEventListener('input', () => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(loadMaterials, 300);
-    });
-
-    // 資料クリック（詳細表示またはリンク開く）
-    document.querySelector(elementsSelector.materialsContainer).addEventListener('click', async (e) => {
-        const card = e.target.closest('[data-material-id]');
-        if (!card) return;
-
-        // 削除ボタンがクリックされた場合
-        if (e.target.closest('.delete-material')) {
-            e.stopPropagation();
-            const materialId = e.target.closest('.delete-material').dataset.materialId;
-            await deleteMaterial(materialId);
-            return;
-        }
-
-        // 資料カードがクリックされた場合
-        const materialId = card.dataset.materialId;
-        const material = materials.find(m => m.id == materialId);
-        
-        if (material && material.type === 'url' && material.file_url) {
-            window.open(material.file_url, '_blank');
-        }
-    });
-
+    // ダークモード切り替え
+    const themeToggle = document.getElementById('theme-toggle');
+    themeToggle.addEventListener('click', toggleDarkMode);
+    
+    // アップロードボタン
+    const uploadBtn = document.getElementById('upload-btn');
+    uploadBtn.addEventListener('click', openUploadModal);
+    
     // モーダル関連
-    document.querySelector(elementsSelector.addMaterialBtn).addEventListener('click', openModal);
-    document.querySelector(elementsSelector.closeModalBtn).addEventListener('click', closeModal);
-    document.querySelector(elementsSelector.cancelBtn).addEventListener('click', closeModal);
+    const modalClose = document.getElementById('modal-close');
+    const modalCancel = document.getElementById('modal-cancel');
+    const modalSubmit = document.getElementById('modal-submit');
     
-    // モーダル外クリックで閉じる
-    document.querySelector(elementsSelector.addMaterialModal).addEventListener('click', (e) => {
-        if (e.target === e.currentTarget) closeModal();
-    });
-
-    // フォーム送信
-    document.querySelector(elementsSelector.addMaterialForm).addEventListener('submit', handleFormSubmit);
-
-    // タイプ切り替え
-    document.querySelectorAll('input[name="material-type"]').forEach(radio => {
-        radio.addEventListener('change', toggleInputType);
-    });
-
-    // テーマ切り替え
-    document.querySelector(elementsSelector.themeToggle).addEventListener('click', toggleTheme);
-}
-
-// モーダル開く
-function openModal() {
-    document.querySelector(elementsSelector.addMaterialModal).classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-}
-
-// モーダル閉じる
-function closeModal() {
-    document.querySelector(elementsSelector.addMaterialModal).classList.add('hidden');
-    document.body.style.overflow = '';
-    document.querySelector(elementsSelector.addMaterialForm).reset();
-    toggleInputType(); // 初期状態に戻す
-}
-
-// 入力タイプ切り替え
-function toggleInputType() {
-    const selectedType = document.querySelector('input[name="material-type"]:checked').value;
-    const urlInput = document.querySelector('#url-input');
-    const fileInput = document.querySelector('#file-input');
+    modalClose.addEventListener('click', closeUploadModal);
+    modalCancel.addEventListener('click', closeUploadModal);
+    modalSubmit.addEventListener('click', handleUpload);
     
-    if (selectedType === 'url') {
-        urlInput.classList.remove('hidden');
-        fileInput.classList.add('hidden');
-        document.querySelector('#material-url').required = true;
-        document.querySelector('#material-file').required = false;
-    } else {
-        urlInput.classList.add('hidden');
-        fileInput.classList.remove('hidden');
-        document.querySelector('#material-url').required = false;
-        document.querySelector('#material-file').required = true;
+    // アップロードタイプ切り替え
+    const uploadFileRadio = document.getElementById('upload-file');
+    const uploadUrlRadio = document.getElementById('upload-url');
+    
+    if (uploadFileRadio && uploadUrlRadio) {
+        uploadFileRadio.addEventListener('change', toggleUploadType);
+        uploadUrlRadio.addEventListener('change', toggleUploadType);
     }
-}
-
-// フォーム送信処理
-async function handleFormSubmit(e) {
-    e.preventDefault();
     
-    const formData = {
-        title: document.querySelector('#material-title').value,
-        description: document.querySelector('#material-description').value,
-        category_id: parseInt(document.querySelector('#material-category').value),
-        type: document.querySelector('input[name="material-type"]:checked').value,
-        tags: document.querySelector('#material-tags').value.split(',').map(tag => tag.trim()).filter(tag => tag)
-    };
-
-    if (formData.type === 'url') {
-        formData.file_url = document.querySelector('#material-url').value;
-    } else {
-        // ファイルアップロードは将来実装
-        alert('ファイルアップロード機能は現在開発中です。URLタイプをご利用ください。');
-        return;
-    }
-
-    try {
-        const response = await axios.post('/api/materials', formData);
-        if (response.data.success) {
-            closeModal();
+    // 検索
+    const searchInput = document.getElementById('search-input');
+    let searchTimeout;
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
             loadMaterials();
-            showNotification('資料が正常に追加されました', 'success');
+        }, 300);
+    });
+    
+    // モーダル背景クリックで閉じる
+    const uploadModal = document.getElementById('upload-modal');
+    uploadModal.addEventListener('click', function(e) {
+        if (e.target === uploadModal) {
+            closeUploadModal();
+        }
+    });
+}
+
+// ダークモード切り替え
+function toggleDarkMode() {
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+
+// カテゴリ読み込み
+async function loadCategories() {
+    try {
+        showLoading(true);
+        const response = await axios.get('/api/categories');
+        
+        if (response.data.success) {
+            categories = response.data.data;
+            updateCategoryTabs();
+            updateCategorySelect();
         } else {
-            showNotification(response.data.error || '資料の追加に失敗しました', 'error');
+            showError('カテゴリの読み込みに失敗しました');
         }
     } catch (error) {
-        console.error('Error creating material:', error);
-        showNotification('資料の追加に失敗しました', 'error');
+        console.error('Error loading categories:', error);
+        showError('カテゴリの読み込み中にエラーが発生しました');
+    }
+}
+
+// カテゴリタブ更新
+function updateCategoryTabs() {
+    const categoryTabs = document.getElementById('category-tabs');
+    if (!categoryTabs) return;
+    
+    // 各カテゴリタブを追加
+    categories.forEach(cat => {
+        const button = document.createElement('button');
+        button.className = `category-tab px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-primary-100 dark:hover:bg-gray-600 transition-colors text-sm font-medium`;
+        button.dataset.category = cat.id;
+        button.textContent = cat.name;
+        
+        // クリックイベント追加
+        button.addEventListener('click', function() {
+            switchCategory(cat.id.toString());
+        });
+        
+        categoryTabs.appendChild(button);
+    });
+}
+
+// カテゴリ選択更新
+function updateCategorySelect() {
+    const categorySelect = document.getElementById('category_id');
+    if (!categorySelect) return;
+    
+    categories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat.id;
+        option.textContent = cat.name;
+        categorySelect.appendChild(option);
+    });
+}
+
+// カテゴリ切り替え
+function switchCategory(categoryId) {
+    currentCategory = categoryId;
+    
+    // タブのアクティブ状態更新
+    document.querySelectorAll('.category-tab').forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.dataset.category === categoryId || (categoryId === 'all' && tab.dataset.category === 'all')) {
+            tab.classList.add('active');
+        }
+    });
+    
+    loadMaterials();
+}
+
+// 資料読み込み
+async function loadMaterials() {
+    try {
+        showLoading(true);
+        
+        const searchTerm = document.getElementById('search-input').value;
+        
+        const params = new URLSearchParams();
+        if (searchTerm) params.append('search', searchTerm);
+        if (currentCategory !== 'all') params.append('category', currentCategory);
+        
+        const response = await axios.get(`/api/materials?${params.toString()}`);
+        
+        if (response.data.success) {
+            currentMaterials = response.data.data;
+            updateMaterialsDisplay();
+        } else {
+            showError('資料の読み込みに失敗しました');
+        }
+    } catch (error) {
+        console.error('Error loading materials:', error);
+        showError('資料の読み込み中にエラーが発生しました');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// 資料表示更新
+function updateMaterialsDisplay() {
+    const materialsGrid = document.getElementById('materials-grid');
+    const emptyState = document.getElementById('empty-state');
+    
+    if (currentMaterials.length === 0) {
+        materialsGrid.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        return;
+    }
+    
+    materialsGrid.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+    
+    materialsGrid.innerHTML = currentMaterials.map(material => createMaterialCard(material)).join('');
+    
+    // 資料カードクリックイベント追加
+    materialsGrid.querySelectorAll('.material-card').forEach(card => {
+        card.addEventListener('click', function() {
+            const materialId = this.dataset.materialId;
+            openMaterial(materialId);
+        });
+        
+        // 削除ボタンイベント
+        const deleteBtn = card.querySelector('.delete-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                deleteMaterial(this.dataset.materialId);
+            });
+        }
+    });
+}
+
+// 資料カード作成
+function createMaterialCard(material) {
+    const tagsHtml = material.tags && material.tags.length > 0 
+        ? material.tags.map(tag => `<span class="inline-block bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 px-2 py-1 rounded text-xs">${escapeHtml(tag)}</span>`).join(' ')
+        : '';
+    
+    const fileTypeIcon = getFileTypeIcon(material.file_type);
+    
+    return `
+        <div class="material-card bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6 cursor-pointer" data-material-id="${material.id}">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex items-center space-x-3">
+                    <div class="text-2xl">${fileTypeIcon}</div>
+                    <div>
+                        <h3 class="font-semibold text-gray-900 dark:text-white">${escapeHtml(material.title)}</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">${material.category_name}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-500">作成者: ${escapeHtml(material.author_name)}</p>
+                    </div>
+                </div>
+                <button class="delete-btn text-gray-400 hover:text-red-500 transition-colors" data-material-id="${material.id}">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+            
+            ${material.description ? `<p class="text-sm text-gray-600 dark:text-gray-400 mb-4">${escapeHtml(material.description)}</p>` : ''}
+            
+            ${tagsHtml ? `<div class="flex flex-wrap gap-2 mb-4">${tagsHtml}</div>` : ''}
+            
+            <div class="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
+                <span>${formatDate(material.created_at)}</span>
+                <span class="flex items-center space-x-2">
+                    <i class="fas fa-download"></i>
+                    <span>${material.download_count || 0}</span>
+                </span>
+            </div>
+        </div>
+    `;
+}
+
+// ファイルタイプアイコン取得
+function getFileTypeIcon(fileType) {
+    if (fileType.includes('Google Slides')) return '📊';
+    if (fileType.includes('Google Docs')) return '📄';
+    if (fileType.includes('Google Sheets')) return '📈';
+    if (fileType.includes('YouTube')) return '🎬';
+    if (fileType.includes('pdf')) return '📕';
+    if (fileType.includes('word') || fileType.includes('docx')) return '📘';
+    if (fileType.includes('excel') || fileType.includes('xlsx')) return '📗';
+    if (fileType.includes('powerpoint') || fileType.includes('pptx')) return '📙';
+    return '🔗';
+}
+
+// 資料を開く
+function openMaterial(materialId) {
+    const material = currentMaterials.find(m => m.id == materialId);
+    if (material && material.file_url) {
+        window.open(material.file_url, '_blank');
+        
+        // ダウンロード数更新（APIがあれば）
+        // updateDownloadCount(materialId);
     }
 }
 
 // 資料削除
 async function deleteMaterial(materialId) {
     if (!confirm('この資料を削除してもよろしいですか？')) return;
-
+    
     try {
         const response = await axios.delete(`/api/materials/${materialId}`);
+        
         if (response.data.success) {
+            showSuccess('資料が削除されました');
             loadMaterials();
-            showNotification('資料が削除されました', 'success');
         } else {
-            showNotification('資料の削除に失敗しました', 'error');
+            showError('資料の削除に失敗しました');
         }
     } catch (error) {
         console.error('Error deleting material:', error);
-        showNotification('資料の削除に失敗しました', 'error');
+        showError('削除中にエラーが発生しました');
     }
 }
 
-// テーマ関連
-function initTheme() {
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    applyTheme(savedTheme);
+// アップロードモーダル開く
+function openUploadModal() {
+    document.getElementById('upload-modal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
 }
 
-function toggleTheme() {
-    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-    applyTheme(newTheme);
+// アップロードモーダル閉じる
+function closeUploadModal() {
+    document.getElementById('upload-modal').classList.add('hidden');
+    document.body.style.overflow = '';
+    document.getElementById('upload-form').reset();
+    toggleUploadType(); // リセット
 }
 
-function applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
+// アップロードタイプ切り替え
+function toggleUploadType() {
+    const uploadType = document.querySelector('input[name="upload_type"]:checked').value;
+    const fileSection = document.getElementById('file-upload-section');
+    const urlSection = document.getElementById('url-upload-section');
     
-    const themeIcon = document.querySelector('#theme-toggle i');
-    themeIcon.className = theme === 'light' ? 'fas fa-moon text-lg' : 'fas fa-sun text-lg';
+    if (uploadType === 'file') {
+        fileSection.classList.remove('hidden');
+        urlSection.classList.add('hidden');
+    } else {
+        fileSection.classList.add('hidden');
+        urlSection.classList.remove('hidden');
+    }
 }
 
-// UI状態制御
-function showLoading() {
-    document.querySelector(elementsSelector.loading).classList.remove('hidden');
-    document.querySelector(elementsSelector.materialsContainer).classList.add('hidden');
-    document.querySelector(elementsSelector.emptyState).classList.add('hidden');
+// アップロード処理
+async function handleUpload() {
+    const form = document.getElementById('upload-form');
+    const formData = new FormData();
+    
+    // フォームデータ収集
+    const title = document.getElementById('title').value.trim();
+    const description = document.getElementById('description').value.trim();
+    const authorName = document.getElementById('author_name').value.trim();
+    const categoryId = document.getElementById('category_id').value;
+    const tagsInput = document.getElementById('tags').value.trim();
+    const uploadType = document.querySelector('input[name="upload_type"]:checked').value;
+    
+    // バリデーション
+    if (!title || !authorName || !categoryId) {
+        showError('必須項目を入力してください');
+        return;
+    }
+    
+    // タグ処理
+    const tags = tagsInput ? tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
+    
+    // FormDataに追加
+    formData.append('title', title);
+    formData.append('description', description);
+    formData.append('author_name', authorName);
+    formData.append('category_id', categoryId);
+    formData.append('tags', JSON.stringify(tags));
+    formData.append('upload_type', uploadType);
+    
+    if (uploadType === 'url') {
+        const materialUrl = document.getElementById('material-url').value.trim();
+        if (!materialUrl) {
+            showError('URLを入力してください');
+            return;
+        }
+        formData.append('material_url', materialUrl);
+    } else {
+        const fileInput = document.getElementById('file');
+        if (!fileInput.files[0]) {
+            showError('ファイルを選択してください');
+            return;
+        }
+        formData.append('file', fileInput.files[0]);
+    }
+    
+    try {
+        showLoading(true);
+        const response = await axios.post('/api/materials', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+        
+        if (response.data.success) {
+            showSuccess('資料が正常に追加されました');
+            closeUploadModal();
+            loadMaterials();
+        } else {
+            showError(response.data.error || '資料の追加に失敗しました');
+        }
+    } catch (error) {
+        console.error('Error uploading material:', error);
+        showError('アップロード中にエラーが発生しました');
+    } finally {
+        showLoading(false);
+    }
 }
 
-function hideLoading() {
-    document.querySelector(elementsSelector.loading).classList.add('hidden');
-    document.querySelector(elementsSelector.materialsContainer).classList.remove('hidden');
+// ローディング表示
+function showLoading(show) {
+    const loading = document.getElementById('loading');
+    if (show) {
+        loading.classList.remove('hidden');
+    } else {
+        loading.classList.add('hidden');
+    }
 }
 
-function showEmptyState() {
-    document.querySelector(elementsSelector.emptyState).classList.remove('hidden');
-    document.querySelector(elementsSelector.materialsContainer).classList.add('hidden');
+// 成功メッセージ表示
+function showSuccess(message) {
+    showNotification(message, 'success');
 }
 
-function hideEmptyState() {
-    document.querySelector(elementsSelector.emptyState).classList.add('hidden');
+// エラーメッセージ表示
+function showError(message) {
+    showNotification(message, 'error');
 }
 
 // 通知表示
 function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 px-6 py-4 rounded-lg text-white font-semibold shadow-lg z-50 transition-all transform translate-x-full`;
+    notification.className = `fixed top-4 right-4 px-6 py-4 rounded-lg shadow-lg z-50 transition-all transform translate-x-full`;
     
     if (type === 'success') {
-        notification.classList.add('bg-green-500');
+        notification.className += ' bg-green-500 text-white';
     } else if (type === 'error') {
-        notification.classList.add('bg-red-500');
+        notification.className += ' bg-red-500 text-white';
     } else {
-        notification.classList.add('bg-blue-500');
+        notification.className += ' bg-blue-500 text-white';
     }
     
     notification.textContent = message;
@@ -387,12 +454,4 @@ function formatDate(dateString) {
         month: 'short',
         day: 'numeric'
     });
-}
-
-function formatFileSize(bytes) {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
