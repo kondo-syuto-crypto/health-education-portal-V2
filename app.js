@@ -50,14 +50,7 @@ function setupEventListeners() {
     modalCancel.addEventListener('click', closeUploadModal);
     modalSubmit.addEventListener('click', handleUpload);
     
-    // アップロードタイプ切り替え
-    const uploadFileRadio = document.getElementById('upload-file');
-    const uploadUrlRadio = document.getElementById('upload-url');
-    
-    if (uploadFileRadio && uploadUrlRadio) {
-        uploadFileRadio.addEventListener('change', toggleUploadType);
-        uploadUrlRadio.addEventListener('change', toggleUploadType);
-    }
+    // URL共有のみなのでアップロードタイプ切り替えは不要
     
     // 検索
     const searchInput = document.getElementById('search-input');
@@ -306,23 +299,9 @@ function closeUploadModal() {
     document.getElementById('upload-modal').classList.add('hidden');
     document.body.style.overflow = '';
     document.getElementById('upload-form').reset();
-    toggleUploadType(); // リセット
 }
 
-// アップロードタイプ切り替え
-function toggleUploadType() {
-    const uploadType = document.querySelector('input[name="upload_type"]:checked').value;
-    const fileSection = document.getElementById('file-upload-section');
-    const urlSection = document.getElementById('url-upload-section');
-    
-    if (uploadType === 'file') {
-        fileSection.classList.remove('hidden');
-        urlSection.classList.add('hidden');
-    } else {
-        fileSection.classList.add('hidden');
-        urlSection.classList.remove('hidden');
-    }
-}
+// URL共有のみなのでアップロードタイプ切り替えは不要
 
 // アップロード処理
 async function handleUpload() {
@@ -335,10 +314,10 @@ async function handleUpload() {
     const authorName = document.getElementById('author_name').value.trim();
     const categoryId = document.getElementById('category_id').value;
     const tagsInput = document.getElementById('tags').value.trim();
-    const uploadType = document.querySelector('input[name="upload_type"]:checked').value;
+    const materialUrl = document.getElementById('material-url').value.trim();
     
     // バリデーション
-    if (!title || !authorName || !categoryId) {
+    if (!title || !authorName || !categoryId || !materialUrl) {
         showError('必須項目を入力してください');
         return;
     }
@@ -352,23 +331,8 @@ async function handleUpload() {
     formData.append('author_name', authorName);
     formData.append('category_id', categoryId);
     formData.append('tags', JSON.stringify(tags));
-    formData.append('upload_type', uploadType);
-    
-    if (uploadType === 'url') {
-        const materialUrl = document.getElementById('material-url').value.trim();
-        if (!materialUrl) {
-            showError('URLを入力してください');
-            return;
-        }
-        formData.append('material_url', materialUrl);
-    } else {
-        const fileInput = document.getElementById('file');
-        if (!fileInput.files[0]) {
-            showError('ファイルを選択してください');
-            return;
-        }
-        formData.append('file', fileInput.files[0]);
-    }
+    formData.append('upload_type', 'url');
+    formData.append('material_url', materialUrl);
     
     try {
         showLoading(true);
